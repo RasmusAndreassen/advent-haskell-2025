@@ -1,8 +1,8 @@
 module Main (main) where
 
 import Control.Applicative (ZipList (ZipList, getZipList))
-import Control.Arrow (Arrow (first, second))
-import Control.Lens (ala, unsnoc)
+import Control.Lens (Rewrapping, Wrapped (Unwrapped), ala, unsnoc)
+import Data.Maybe (fromJust)
 
 type Binop a = a -> a -> a
 
@@ -25,21 +25,18 @@ split :: [Int] -> [a] -> [[a]]
 split (n : ns) as = let (h, t) = splitAt n as in h : split ns (drop 1 t)
 split _ _ = []
 
-columns :: String -> ([[String]], [Binop Integer])
+columns :: String -> ([[Integer]], [Binop Integer])
 columns input =
-  let Just (operandStrings, operatorString) = unsnoc . lines $ input
+  let (operandStrings, operatorString) = fromJust . unsnoc . lines $ input
       (operators, widths) = unzip . columnize $ operatorString
       operandRows = split widths <$> operandStrings
-      operandColumns = transpose operandRows
+      operandColumns = map read . transpose <$> transpose operandRows
    in (operandColumns, operators)
 
 computation :: String -> [Integer]
 computation input =
   let (operandColumns, operators) = columns input
-      operatorz = ZipList operators
-      operands = map read . transpose <$> operandColumns
-      operandz = ZipList <$> transpose operands
-      results = getZipList $ foldA operatorz operandz
+      results = getZipList $ foldl1 <$> ZipList operators <*> ZipList operandColumns
    in results
 
 main :: IO ()
@@ -47,9 +44,3 @@ main = do
   input <- getContents
 
   print $ sum $ computation input
-
-liftP2 :: (Applicative f) => f (a -> b -> c) -> f a -> f b -> f c
-liftP2 nf na = (nf <*> na <*>)
-
-foldA :: (Foldable t, Applicative f) => f (a -> a -> a) -> t (f a) -> f a
-foldA mf = foldl1 $ liftP2 mf
