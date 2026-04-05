@@ -1,14 +1,22 @@
+{-# LANGUAGE Arrows #-}
+{-# LANGUAGE TemplateHaskell #-}
+
 module Main (main) where
 
+import Control.Arrow (returnA)
+import Control.Lens
 import Control.Monad (when)
+import Control.Monad.Reader (MonadReader (ask), Reader, runReader)
 import Control.Monad.Writer (MonadWriter (tell), Writer, runWriter)
-import Data.Monoid (Sum (getSum))
+import Data.Monoid (Sum)
 
 data Cell
   = Emitter
   | Space Bool
   | Splitter
   deriving (Eq)
+
+makePrisms ''Cell
 
 type Row = [Cell]
 
@@ -33,11 +41,13 @@ scanlA1 :: (Applicative f) => (f a -> a -> f a) -> [a] -> f [a]
 scanlA1 op (a : as) = sequenceA . scanl op (pure a) $ as
 scanlA1 _ [] = undefined
 
-propagateCell :: Cell -> Cell -> Bool -> Cell
-propagateCell above (Space _) overflow = case above of
-  Space b -> Space $ b || overflow
-  _ -> Space overflow
-propagateCell _ cell _ = cell
+propagateCell :: Cell -> Cell -> Reader Bool Cell
+propagateCell above (Space _) = do
+  overflow <- ask
+  return $ case above of
+    Space b -> Space $ b || overflow
+    _ -> Space overflow
+propagateCell _ cell = return cell
 
 cellOverflows :: Bool -> Cell -> Bool
 cellOverflows True Splitter = True
@@ -48,32 +58,40 @@ cellEmits (Space b) = b
 cellEmits Emitter = True
 cellEmits _ = False
 
-propagateRow :: Row -> Row -> Row
-propagateRow prev curr = fst . foldr computeCell ([], False) $ zip prev curr
-  where
-    computeCell (above, cell) (hitherto, fromRight) =
-      let incoming = cellEmits above
-          cell' = propagateCell above cell (incoming || fromRight)
-          spill = cellOverflows incoming cell
-          hitherto' =
-            if spill
-              then case hitherto of
-                (Space False) : thitherto -> Space True : thitherto
-                other -> other
-              else hitherto
-       in (cell' : hitherto', spill)
+infixr 9 <<
 
-record :: ((a, b) -> s) -> (a -> b) -> a -> Writer s b
+(<<) :: (c -> c') -> (a -> b -> c) -> a -> b -> c'
+(<<) = (.) . (.)
+
+n = proc c -> do
+  rec (a, b) <- splitAt 2 -< b
+  returnA -< a
+
+propagateRow :: Row -> Row -> Row
+propagateRow = (fst . foldr computeCell ([], False)) << zip
+
+computeCell :: (Cell, Cell) -> ([Cell], Bool) -> ([Cell], Bool)
+computeCell (above, cell) (hitherto, fromRight) =
+  let incoming = cellEmits above
+      cell' = runReader (propagateCell above cell) $ incoming || fromRight
+      spill = cellOverflows incoming cell
+      hitherto' =
+        if spill
+          then hitherto & (_head . _Space) ^~ True
+          else hitherto
+   in (cell' : hitherto', spill)
+
+record :: (a -> b -> s) -> (a -> b) -> a -> Writer s b
 record r f a = do
   let b = f a
-  tell $ r (a, b)
+  tell $ r a b
   return b
 
-count :: Cell -> Cell -> Writer String ()
-count above cell = do
-  when (cell == Splitter) $
-    tell $
-      show above
+splits :: Cell -> Cell -> Int
+splits above cell =
+  if above == Space True && cell == Splitter
+    then 1
+    else 0
 
 main :: IO ()
 main = do

@@ -21,6 +21,7 @@ executable day7
     -- other-modules:
     -- other-extensions:
     build-depends:    base ^>=4.21.1.0,
+        lens,
         mtl
     hs-source-dirs:   exe
     default-language: GHC2024
