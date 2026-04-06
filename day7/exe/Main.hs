@@ -3,12 +3,12 @@
 
 module Main (main) where
 
-import Control.Arrow (returnA)
 import Control.Lens
 import Control.Monad (when)
-import Control.Monad.Reader (MonadReader (ask), Reader, runReader)
+import Control.Monad.State
 import Control.Monad.Writer (MonadWriter (tell), Writer, runWriter)
-import Data.Monoid (Sum)
+import Data.Monoid (Sum (Sum))
+import GHC.Stack (HasCallStack)
 
 data Cell
   = Emitter
@@ -34,20 +34,16 @@ fromString = map conv
     conv 'S' = Emitter
     conv _ = undefined
 
-foldrA :: (Applicative f) => (a -> f b -> f b) -> b -> [a] -> f b
-foldrA op b = foldr op (pure b)
+scanlM :: (Monad f) => (b -> a -> f b) -> b -> [a] -> f [b]
+scanlM (<:>) nl (a : as) = do
+  b <- nl <:> a
+  bs <- scanlM (<:>) b as
+  return $ b : bs
+scanlM _ _ [] = return []
 
-scanlA1 :: (Applicative f) => (f a -> a -> f a) -> [a] -> f [a]
-scanlA1 op (a : as) = sequenceA . scanl op (pure a) $ as
-scanlA1 _ [] = undefined
-
-propagateCell :: Cell -> Cell -> Reader Bool Cell
-propagateCell above (Space _) = do
-  overflow <- ask
-  return $ case above of
-    Space b -> Space $ b || overflow
-    _ -> Space overflow
-propagateCell _ cell = return cell
+scanlM1 :: (HasCallStack, Monad f) => (a -> a -> f a) -> [a] -> f [a]
+scanlM1 (<:>) (a : as) = scanlM (<:>) a as
+scanlM1 _ [] = undefined
 
 cellOverflows :: Bool -> Cell -> Bool
 cellOverflows True Splitter = True
@@ -63,42 +59,38 @@ infixr 9 <<
 (<<) :: (c -> c') -> (a -> b -> c) -> a -> b -> c'
 (<<) = (.) . (.)
 
-n = proc c -> do
-  rec (a, b) <- splitAt 2 -< b
-  returnA -< a
+showRow :: Row -> String
+showRow = concatMap show
 
-propagateRow :: Row -> Row -> Row
-propagateRow = (fst . foldr computeCell ([], False)) << zip
-
-computeCell :: (Cell, Cell) -> ([Cell], Bool) -> ([Cell], Bool)
-computeCell (above, cell) (hitherto, fromRight) =
-  let incoming = cellEmits above
-      cell' = runReader (propagateCell above cell) $ incoming || fromRight
-      spill = cellOverflows incoming cell
-      hitherto' =
-        if spill
-          then hitherto & (_head . _Space) ^~ True
-          else hitherto
-   in (cell' : hitherto', spill)
-
-record :: (a -> b -> s) -> (a -> b) -> a -> Writer s b
-record r f a = do
-  let b = f a
-  tell $ r a b
-  return b
-
-splits :: Cell -> Cell -> Int
-splits above cell =
-  if above == Space True && cell == Splitter
-    then 1
-    else 0
+propagateRow :: Row -> Row -> Writer (Sum Int) Row
+propagateRow = inner << zip
+  where
+    inner [] = return []
+    inner ps = evalStateT (inner' ps) False
+    inner' :: [(Cell, Cell)] -> StateT Bool (Writer (Sum Int)) Row
+    inner' [] = do
+      put False
+      return []
+    inner' ((above, cell) : ps) = do
+      fromRight <- get
+      let incoming = cellEmits above
+          spill = cellOverflows incoming cell
+      put spill
+      cells' <- inner' ps
+      fromLeft <- get
+      let cell' = set _Space (incoming || fromRight || fromLeft) cell
+      put spill
+      when spill $
+        lift $
+          tell 1
+      return $ cell' : cells'
 
 main :: IO ()
 main = do
   ls <- lines <$> getContents
   let circuit = map fromString ls
-      (executed, result) = runWriter $ scanlA1 (propagateRow count) circuit
+      executed = scanlM1 propagateRow circuit
+      (outputMap, Sum count) = runWriter executed
 
-  putStr $ unlines $ concatMap show <$> executed
-
-  print $ length result
+  putStr $ unlines . map showRow $ outputMap
+  putStrLn $ "split " ++ show count ++ " times"
