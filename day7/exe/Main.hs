@@ -7,12 +7,12 @@ import Control.Lens
 import Control.Monad (when)
 import Control.Monad.State
 import Control.Monad.Writer (MonadWriter (tell), Writer, runWriter)
-import Data.Monoid (Sum (Sum))
+import Data.Monoid (Sum (Sum, getSum))
 import GHC.Stack (HasCallStack)
 
 data Cell
   = Emitter
-  | Space Bool
+  | Space Int
   | Splitter
   deriving (Eq)
 
@@ -22,14 +22,13 @@ type Row = [Cell]
 
 instance Show Cell where
   show Emitter = "S"
-  show (Space b) = if b then "|" else "."
+  show (Space n) = if n > 0 then "|" else "."
   show Splitter = "^"
 
 fromString :: String -> Row
 fromString = map conv
   where
-    conv '.' = Space False
-    conv '|' = Space True
+    conv '.' = Space 0
     conv '^' = Splitter
     conv 'S' = Emitter
     conv _ = undefined
@@ -45,14 +44,14 @@ scanlM1 :: (HasCallStack, Monad f) => (a -> a -> f a) -> [a] -> f [a]
 scanlM1 (<:>) (a : as) = scanlM (<:>) a as
 scanlM1 _ [] = undefined
 
-cellOverflows :: Bool -> Cell -> Bool
-cellOverflows True Splitter = True
-cellOverflows _ _ = False
+cellOverflows :: Int -> Cell -> Int
+cellOverflows n Splitter = n
+cellOverflows _ _ = 0
 
-cellEmits :: Cell -> Bool
+cellEmits :: Cell -> Int
 cellEmits (Space b) = b
-cellEmits Emitter = True
-cellEmits _ = False
+cellEmits Emitter = 1
+cellEmits _ = 0
 
 infixr 9 <<
 
@@ -62,14 +61,14 @@ infixr 9 <<
 showRow :: Row -> String
 showRow = concatMap show
 
-propagateRow :: Row -> Row -> Writer (Sum Int) Row
+propagateRow :: Row -> Row -> Row
 propagateRow = inner << zip
   where
-    inner [] = return []
-    inner ps = evalStateT (inner' ps) False
-    inner' :: [(Cell, Cell)] -> StateT Bool (Writer (Sum Int)) Row
+    inner [] = []
+    inner ps = evalState (inner' ps) 0
+    inner' :: [(Cell, Cell)] -> State Int Row
     inner' [] = do
-      put False
+      put 0
       return []
     inner' ((above, cell) : ps) = do
       fromRight <- get
@@ -78,19 +77,22 @@ propagateRow = inner << zip
       put spill
       cells' <- inner' ps
       fromLeft <- get
-      let cell' = set _Space (incoming || fromRight || fromLeft) cell
+      let cell' = set _Space (incoming + fromRight + fromLeft) cell
       put spill
-      when spill $
-        lift $
-          tell 1
       return $ cell' : cells'
+
+pathCounts :: Traversal' Row Int
+pathCounts = traversal $ \f r ->
+  sequenceA $ flip map r $ \case
+    Space n -> Space <$> f n
+    other -> pure other
 
 main :: IO ()
 main = do
   ls <- lines <$> getContents
   let circuit = map fromString ls
-      executed = scanlM1 propagateRow circuit
-      (outputMap, Sum count) = runWriter executed
+      executed = scanl1 propagateRow circuit
+      paths = getSum $ view (_last . pathCounts . to Sum) executed
 
-  putStr $ unlines . map showRow $ outputMap
-  putStrLn $ "split " ++ show count ++ " times"
+  putStr $ unlines . map showRow $ executed
+  putStrLn $ "total " ++ show paths ++ " paths"
