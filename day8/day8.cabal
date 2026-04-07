@@ -19,7 +19,8 @@ executable day8
     import:           warnings
     main-is:          Main.hs
     other-modules:
-        Point
+        Point,
+        Arith
     -- other-extensions:
     build-depends:    base ^>=4.21.1.0
     hs-source-dirs:   exe
