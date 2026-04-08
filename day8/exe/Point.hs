@@ -1,6 +1,9 @@
-module Point (Point (P, _x, _y, _z), distance) where
+{-# LANGUAGE TemplateHaskell #-}
+
+module Point (Point (P, _x, _y, _z), x, y, z, toTriple) where
 
 import Arith
+import Control.Lens (Lens', makeLenses)
 import Prelude hiding ((+), (-))
 
 data Point = P
@@ -8,14 +11,12 @@ data Point = P
     _y :: Int,
     _z :: Int
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Ord)
 
-distance :: Point -> Point -> Int
-distance (P x1 y1 z1) (P x2 y2 z2) =
-  let dx = x2 - x1
-      dy = y2 - y1
-      dz = z2 - z1
-   in dx ^ 2 + dy ^ 2 + dz ^ 2
+makeLenses ''Point
+
+toTriple :: Point -> (Int, Int, Int)
+toTriple (P x y z) = (x, y, z)
 
 instance Read Point where
   readsPrec i s = do
