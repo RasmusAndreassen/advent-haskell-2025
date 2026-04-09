@@ -23,8 +23,8 @@ executable day8
         Arith
     -- other-extensions:
     build-depends:    base ^>=4.21.1.0,
-        matrix,
-        lens,
-        random
+        containers,
+        mtl,
+        lens
     hs-source-dirs:   exe
     default-language: GHC2024
