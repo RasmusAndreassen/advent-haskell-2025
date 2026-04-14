@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Point (Point (P, _x, _y, _z), x, y, z, toTriple) where
+module Point (size, Point (P, _x, _y, _z), x, y, z, toTriple) where
 
 import Arith
 import Control.Lens (Lens', makeLenses)
@@ -11,12 +11,18 @@ data Point = P
     _y :: Int,
     _z :: Int
   }
-  deriving (Eq, Show, Ord)
+  deriving (Eq, Ord)
+
+instance Show Point where
+  show (P x y z) = "(P " ++ show x ++ " " ++ show y ++ " " ++ show z ++ ")"
 
 makeLenses ''Point
 
 toTriple :: Point -> (Int, Int, Int)
 toTriple (P x y z) = (x, y, z)
+
+size :: Point -> Int
+size (P x y z) = x ^ 2 + y ^ 2 + z ^ 2
 
 instance Read Point where
   readsPrec i s = do

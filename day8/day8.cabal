@@ -20,11 +20,13 @@ executable day8
     main-is:          Main.hs
     other-modules:
         Point,
+        Util,
         Arith
     -- other-extensions:
     build-depends:    base ^>=4.21.1.0,
         containers,
         mtl,
+        matrix,
         lens
     hs-source-dirs:   exe
     default-language: GHC2024
