@@ -1,0 +1,22 @@
+cabal-version:   3.0
+name:            day9
+version:         0.1.0.0
+license:         BSD-3-Clause
+license-file:    LICENSE
+author:          Rasmus Andreassen
+maintainer:      rasmus.andreassen@proton.me
+build-type:      Simple
+extra-doc-files: CHANGELOG.md
+
+common warnings
+    ghc-options: -Wall
+
+executable day9
+    other-modules:
+        Vector,
+        Util
+    import:           warnings
+    main-is:          Main.hs
+    build-depends:    base ^>=4.21.1.0
+    hs-source-dirs:   exe
+    default-language: GHC2024
