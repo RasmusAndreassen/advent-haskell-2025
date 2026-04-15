@@ -1,9 +1,18 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module Vector where
 
+import Control.Lens (Traversal', both, makeLenses, traversal)
 import Control.Monad (guard)
+import Data.Bitraversable (Bitraversable)
 
-data Vector = V Int Int
-  deriving (Show)
+data Vector = V
+  { _x :: Int,
+    _y :: Int
+  }
+  deriving (Show, Eq, Ord, Bounded)
+
+makeLenses ''Vector
 
 instance Num Vector where
   (V x1 y1) + (V x2 y2) = V (x1 + x2) (y1 + y2)
@@ -12,6 +21,9 @@ instance Num Vector where
   abs (V x y) = V (abs x) (abs y)
   signum (V x y) = V (signum x) (signum y)
   fromInteger i = let i' = fromInteger i in V i' i'
+
+coords :: Traversal' Vector (Int, Int)
+coords f (V x y) = uncurry V <$> f (x, y)
 
 instance Read Vector where
   readsPrec i s = do
