@@ -6,6 +6,7 @@ import Control.Monad (guard)
 import Control.Monad.State (State, gets)
 import Data.Bifoldable (biminimum)
 import Data.Matrix
+import Data.Matrix.Lens (sub)
 import Data.Maybe (fromMaybe)
 import Data.Semigroup (Max (Max, getMax), Min (Min, getMin))
 import GHC.Generics
@@ -49,7 +50,7 @@ colorFloor p@(V x1 y1) floor = do
   (V x0 y0) <- gets $ fromMaybe p
   let (minX, maxX) = extremaOf traverse [x0, x1]
       (minY, maxY) = extremaOf traverse [y0, y1]
-  return undefined
+  return $ floor & sub (minX, minY) (maxX, maxY) . traverse .~ Green
 
 main :: IO ()
 main = do

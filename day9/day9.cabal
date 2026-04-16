@@ -13,6 +13,7 @@ common warnings
 
 executable day9
     other-modules:
+        Data.Matrix.Lens,
         Vector,
         Util
     import:           warnings
