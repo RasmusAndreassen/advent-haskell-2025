@@ -20,6 +20,7 @@ executable day9
     main-is:          Main.hs
     build-depends:    base ^>=4.21.1.0,
         matrix,
+        vector,
         mtl,
         lens
     hs-source-dirs:   exe
