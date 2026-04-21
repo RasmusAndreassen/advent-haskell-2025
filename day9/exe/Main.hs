@@ -42,6 +42,15 @@ squares vs = do
   guard $ none (between (v1, v2)) vs
   return $ area v1 v2
 
+maxSquare :: (Vector, Vector) -> Matrix Tile -> Int -> Int
+maxSquare (p, q) m max' =
+  let a = area p q
+      colored = allOf (sub (p ^. coords) (q ^. coords) . eachElem) (/= W) m
+   in if a > max'
+        && colored
+        then a
+        else max'
+
 data Tile = W | R | G deriving (Show, Eq, Enum)
 
 colorFloor :: Vector -> State (Maybe Vector, Matrix Tile) ()

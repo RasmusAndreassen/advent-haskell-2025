@@ -2,7 +2,8 @@
 
 module Vector where
 
-import Control.Lens (Traversal', both, makeLenses, traversal)
+import Control.Arrow
+import Control.Lens (Iso', Traversal', both, iso, makeLenses, traversal)
 import Control.Monad (guard)
 import Data.Bitraversable (Bitraversable)
 
@@ -22,8 +23,8 @@ instance Num Vector where
   signum (V x y) = V (signum x) (signum y)
   fromInteger i = let i' = fromInteger i in V i' i'
 
-coords :: Traversal' Vector (Int, Int)
-coords f (V x y) = uncurry V <$> f (x, y)
+coords :: Iso' Vector (Int, Int)
+coords = iso (_x &&& _y) (uncurry V)
 
 instance Read Vector where
   readsPrec i s = do
