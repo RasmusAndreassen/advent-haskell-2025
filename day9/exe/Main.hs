@@ -51,7 +51,22 @@ maxSquare (p, q) m max' =
         then a
         else max'
 
-data Tile = W | R | G deriving (Show, Eq, Enum)
+data Dir
+  = Hor
+  | Vert
+  | Flat
+  deriving (Show, Eq)
+
+data Tile = W | R | G Dir deriving (Show, Eq)
+
+data Location
+  = Outside
+  | Inside
+  | TopEdge
+  | BottomEdge
+  | LeftEdge
+  | RightEdge
+  deriving (Show, Eq)
 
 colorFloor :: Vector -> State (Maybe Vector, Matrix Tile) ()
 colorFloor p1@(V x1 y1) = do
@@ -59,40 +74,64 @@ colorFloor p1@(V x1 y1) = do
   floor <- use _2
   let (minX, maxX) = extrema traverse [x0, x1]
       (minY, maxY) = extrema traverse [y0, y1]
+      dir = if minX == maxX then Hor else Vert
 
   _1 .= Just p1
   _2
     .= ( floor
-           & sub (minX, minY) (maxX, maxY) . eachElem .~ G
+           & sub (minX, minY) (maxX, maxY) . eachElem .~ G dir
            & elemAt (x0, y0) .~ R
            & elemAt (x1, y1) .~ R
        )
 
-brush :: Tile -> State Tile Tile
-brush t = do
-  b <- get
-  case b of
-    W -> do
-      put t
-      return t
-    G -> do
-      when (t == G) $
-        put W
-      when (t == R) $
-        put R
-      return $
-        if t == R then R else G
-    R -> do
-      when (t /= G) $
-        put W
-      return t
+validIndex :: (Int, Int) -> Matrix a -> Bool
+validIndex (i, j) m =
+  let (maxi, maxj) = m ^. size
+   in i > 1
+        && j > 0
+        && i <= maxi
+        && j <= maxj
 
 fillArea :: Matrix Tile -> Matrix Tile
-fillArea =
-  eachRow %~ \row ->
-    let row' = mapM brush row
-        r = evalState row' W
-     in r
+fillArea m =
+  m
+    & eachRow %@~ \i row ->
+      let map = imapAccumLOf traversed $
+            \j location tile ->
+              let cornerFromInside = case (m ! below, m ! above) of
+                    (W, _) -> TopEdge
+                    (G Hor, _) -> TopEdge
+                    (G Vert, _) -> BottomEdge
+                    (_, G Vert) -> TopEdge
+                  cornerFromOutside = case (m ! below, m ! above) of
+                    (W, _) -> BottomEdge
+                    (G Vert, _) -> TopEdge
+                    (G Hor, _) -> BottomEdge
+                    (_, G Vert) -> BottomEdge
+                  above = (i - 1, j)
+                  below = (i + 1, j)
+                  topBorder = not $ validIndex above m
+                  bottomBorder = not $ validIndex above m
+                  location' = case (location, tile) of
+                    (Inside, W) -> Inside
+                    (Inside, G _) -> RightEdge
+                    (Inside, R) -> cornerFromInside
+                    (Outside, W) -> Outside
+                    (Outside, G _) -> LeftEdge
+                    (Outside, R) -> cornerFromOutside
+                    (LeftEdge, W) -> Inside
+                    (LeftEdge, G _) -> RightEdge
+                    (LeftEdge, R) -> cornerFromInside
+                    (RightEdge, W) -> Outside
+                    (RightEdge, G _) -> LeftEdge
+                    (RightEdge, R) -> cornerFromOutside
+                    (TopEdge, G _) -> TopEdge
+                    (TopEdge, R) -> if not topBorder && m ! above == G Vert then LeftEdge else RightEdge
+                    (BottomEdge, G _) -> TopEdge
+                    (BottomEdge, R) -> if not bottomBorder && m ! below == G Vert then LeftEdge else RightEdge
+                  tile' = if location' == Inside then G Flat else tile
+               in (location', tile')
+       in snd . map Outside $ row
 
 main :: IO ()
 main = do

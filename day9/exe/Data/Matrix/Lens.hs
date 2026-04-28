@@ -43,11 +43,11 @@ flattened f xa =
 eachPos :: IndexedTraversal (Int, Int) (Matrix a) (Matrix b) a b
 eachPos = itraverse . indexed
 
-eachRow :: Traversal (Matrix a) (Matrix b) [a] [b]
-eachRow = asRows . each
+eachRow :: IndexedTraversal Int (Matrix a) (Matrix b) [a] [b]
+eachRow = asRows . itraversed
 
-eachCol :: Traversal (Matrix a) (Matrix b) [a] [b]
-eachCol = asCols . each
+eachCol :: IndexedTraversal Int (Matrix a) (Matrix b) [a] [b]
+eachCol = asCols . itraversed
 
 asRows :: Iso (Matrix a) (Matrix b) [[a]] [[b]]
 asRows = iso toLists fromLists
